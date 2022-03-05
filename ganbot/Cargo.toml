@@ -1,0 +1,18 @@
+[package]
+name = "ganbot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.55"
+
+[dependencies.serenity]
+version = "0.10.10"
+features = ["client", "gateway", "rustls_backend", "model", "unstable_discord_api"]
+default-features = false
+
+[dependencies.tokio]
+version = "1.17.0"
+features = ["full"]
