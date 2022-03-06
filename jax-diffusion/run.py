@@ -843,10 +843,13 @@ def qol_setup(resSize, all_title, init_image, seed, choose_diffusion_model, imag
 
 # Advanced Settings #
 
+is_hq = sys.argv[1] == 'HQ'
+print(f'is_hq: {is_hq}')
+
 #@markdown **CLIP Perceptor Selection:** *aesthetic_scale has no effect if vitb16 is false. vitl14 is slower and vram intensive.*
 use_vitb16 = True #@param {type:"boolean"}
 use_vitb32 = True #@param {type:"boolean"}
-use_vitl14 = False #@param {type:"boolean"}
+use_vitl14 = is_hq #@param {type:"boolean"}
 
 #@markdown ---
 
@@ -976,9 +979,9 @@ if totalWeight != 1.0:
 # and use different prompts for each image in the batch. 
 
 if not use_InfoLOOB_prompt:
-    all_title = sys.argv[1]
+    all_title = sys.argv[2]
 steps =  250 #@param {type:"raw"}
-n_batches = 2 #@param {type:"integer"}        
+n_batches = 1 #@param {type:"integer"}        
 batch_size =  1#@param {type:"integer"}
 #@markdown Select the diffusion model: *Resizing the smaller models is very vram intensive and leads to some quality loss. Try generating at the native resolution and using the result as an init.*
 choose_diffusion_model = "OpenAIFinetune | x512" #@param ["OpenAI | x512", "OpenAIFinetune | x512", "LerpedModels | lerp settings are in the Model Alchemy dropdown", "cc12m | x256 (CLIP conditioned)", "cc12m_cfg | x256 (CLIP conditioned, CLIP free guidance)", "PixelArtv4 | x256", "WikiArt | x256", "PixelArtv7_ic_attn | x128 (Instance cross attention)", "PixelArtv6 | x128","Danbooru | x128"]
@@ -995,7 +998,7 @@ imageHeight = 0#@param {type:"integer"}
 #@markdown ### cutn settings 
 #@markdown The effective value of cutn is cutn * cut_batches.
 cutn =  32#@param {type:"integer"}
-cut_batches =  4 #@param {type:"integer"}
+cut_batches =  6 if is_hq else 4 #@param {type:"integer"}
 #@markdown Affects the size of cutouts. Larger cut_pow -> smaller cutouts (down to the min of 224x244)
 cut_pow = 1 #@param {type:"raw"}
 make_cutouts = MakeCutouts(clip_size, cutn, cut_pow=cut_pow, p_mixgrey=0.0)
@@ -1332,8 +1335,10 @@ def run():
                     for k in range(batch_size):
                         pil_image = TF.to_pil_image(images[k])
                         intermediateTitle = sanitize(title[k])
-                        os.makedirs(f'{outputFolder}/{hmTimeStringFolder}-{intermediateTitle}', exist_ok=True)
-                        pil_image.save(f'{outputFolder}/{hmTimeStringFolder}-{intermediateTitle}/step_{j}-{k}-{intermediateTitle}.jpg', quality=90)
+                        intermediateFolder = f'{hmTimeStringFolder}-{intermediateTitle}/'
+                        os.makedirs(f'{outputFolder}{intermediateFolder}', exist_ok=True)
+                        print(f'STEPS_DIR: {intermediateFolder}')
+                        pil_image.save(f'{outputFolder}{intermediateFolder}step_{j}-{k}-{intermediateTitle}.jpg', quality=90)
             if j % saveEvery == 0 and saveVideo:
                 if batch_size < 4:
                     for k in range(batch_size):
@@ -1355,7 +1360,9 @@ def run():
             pil_image = TF.to_pil_image(images[k])
             index = i * batch_size + k + 1
             index_size = n_batches * batch_size
-            pil_image.save(f'{outputFolder}{this_title} ({index} of {index_size}) at {timestring}.jpg', quality=90)
+            image_filename = f'{this_title} ({index} of {index_size}) at {timestring}.jpg'
+            pil_image.save(f'{outputFolder}{image_filename}', quality=90)
+            print(f'IMAGE: {image_filename}')
             if saveVideo and batch_size < 4:
                 make_video(i, k, saveEvery, secondsOfVideo, batch_size)
         
