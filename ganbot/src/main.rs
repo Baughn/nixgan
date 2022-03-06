@@ -89,7 +89,7 @@ impl EventHandler for Handler {
                     if let ApplicationCommandInteractionDataOptionValue::String(prompt) = prompt {
                         match self.generate(quality, prompt.clone(), ctx.clone(), command.clone(), user).await {
                             Err(why) => why.to_string(),
-                            Ok(qlen) => format!("Generating. You are #{} in the queue.", qlen),
+                            Ok(qlen) => format!("Generating. You are #{} in the queue.\nPrompt was: {}", qlen, prompt),
                         }
                     } else {
                         "Unknown error extracting prompt.".to_string()
