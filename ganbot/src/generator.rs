@@ -72,12 +72,12 @@ impl Generator {
             .arg(request.prompt.clone())
             .output().await?;
 
-        let base_url = Url::parse(BASE_URL).unwrap();
+        let base_url = Url::parse(BASE_URL).unwrap().join("jaxgan").unwrap();
         let mut final_url = None;
         let mut steps_url = None;
         for line in String::from_utf8_lossy(&output.stdout).lines() {
-            if let Some((_, dir)) = line.split_once("IMAGE: ") {
-                final_url = Some(base_url.join(dir)?);
+            if let Some((_, image)) = line.split_once("IMAGE: ") {
+                final_url = Some(base_url.join(image)?);
             }
             if let Some((_, dir)) = line.split_once("STEPS_DIR: ") {
                 steps_url = Some(base_url.join(dir)?);
