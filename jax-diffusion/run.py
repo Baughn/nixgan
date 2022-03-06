@@ -3,7 +3,6 @@ sys.path.append('./CLIP_JAX')
 sys.path.append('./jax-guided-diffusion')
 sys.path.append('./v-diffusion-jax')
 os.environ['XLA_PYTHON_CLIENT_ALLOCATOR'] = 'platform'
-print(sys.path)
 
 from PIL import Image, ImageOps
 from braceexpand import braceexpand
