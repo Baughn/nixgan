@@ -1,7 +1,7 @@
 use anyhow::{Result, bail, Context as _};
 use generator::{Generator, Quality};
 
-use std::env;
+use std::env::{self, set_current_dir};
 use serenity::{
     async_trait,
     model::{
@@ -19,6 +19,8 @@ use serenity::{
 use tokio::spawn;
 
 mod generator;
+
+const BASE_DIR: &str = "/home/svein/dev/nixgan/";
 
 struct Handler {
     generator: Generator,
@@ -143,6 +145,9 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Chdir to the expected cwd.
+    set_current_dir(BASE_DIR).unwrap();
+
     // Configure the client with your Discord bot token in the environment.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
