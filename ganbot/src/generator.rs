@@ -84,6 +84,8 @@ impl Generator {
             }
         }
 
+        println!("Finished generating (one way or the other");
+
         if final_url.is_none() {
             // Something went wrong. Report back what.
             let message = String::from_utf8_lossy(&output.stderr).into();
