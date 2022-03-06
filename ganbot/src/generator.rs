@@ -72,7 +72,7 @@ impl Generator {
             .arg(request.prompt.clone())
             .output().await?;
 
-        let base_url = Url::parse(BASE_URL).unwrap().join("jaxgan").unwrap();
+        let base_url = Url::parse(BASE_URL).unwrap().join("jaxgan/").unwrap();
         let mut final_url = None;
         let mut steps_url = None;
         for line in String::from_utf8_lossy(&output.stdout).lines() {
