@@ -1,87 +1,98 @@
 use anyhow::{Result, bail, Context as _};
+use generator::{Generator, Quality};
 use std::env;
 use serenity::{
     async_trait,
     model::{
-        channel::Message,
         gateway::Ready,
         interactions::application_command::{
             ApplicationCommand,
             ApplicationCommandInteractionDataOptionValue,
             ApplicationCommandOptionType,
         },
-        interactions::Interaction,
+        interactions::{Interaction, application_command::ApplicationCommandInteraction},
         interactions::InteractionResponseType,
     },
     prelude::*,
 };
 use tokio::spawn;
-use tokio::time::{sleep, Duration};
 
 mod generator;
 
-struct Handler;
+struct Handler {
+    generator: Generator,
+}
+
+impl Handler {
+    async fn generate(&self, quality: Quality, prompt: String, ctx: Context, command: ApplicationCommandInteraction, user: String) -> Result<usize> {
+        let result = self.generator.queue(quality, prompt.clone())?;
+
+        spawn(async move {
+            let http = &ctx.http;
+            let response = result.1.await;
+            // Some time later...
+            match response {
+                Err(why) => println!("Unknown generation error: {}", why),
+                Ok(generated_picture) => {
+                    let description = format!("{} – earlier steps: {}", user, generated_picture.steps_url);
+                    let result = command.create_followup_message(http, |response| {
+                        response
+                            .content(user)
+                            .create_embed(|embed|
+                                embed
+                                    .description(description)
+                                    .image(generated_picture.final_url)
+                            )
+                    }).await;
+                    if let Err(why) = result {
+                        println!("Unknown error sending response: {}", why);
+                    }
+                }
+            }
+        });
+
+        Ok(result.0)
+    }
+}
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        let http = &ctx.http;
         if let Interaction::ApplicationCommand(command) = interaction {
-            let response = command.create_interaction_response(&ctx.http, |r| {
-                r
-                    .kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| message.content("Testing..."))
-            }).await;
-
-            let origin = command.member.as_ref().map(|m| m.mention().to_string());
-
-            spawn(async move {
-                sleep(Duration::from_millis(1000)).await;
-                let response = command.create_followup_message(&ctx.http, |r| {
-                    let url = "https://brage.info/GAN/jaxgan/%2522Cosmic_cataclysm%2522_by_Dan_Mumford%2520%25281%2520of%25202%2529%2520at%252020220228025312.jpg";
-                    r
-                        .content(origin.unwrap_or("".into()))
-                        .create_embed(|embed|
-                            embed.description("description").image(url)
-                        )
-                }).await;
-                if let Err(why) = response {
-                    println!("Cannot respond to command: {}", why);
+            let response_text = {
+                if let Some(user) = command.member.as_ref().map(|m| m.mention().to_string()) {
+                    // Legal usage in this branch.
+                    // Go ahead and generate. Maybe.
+                    let quality = match command.data.name.as_ref() {
+                        "jaxgan" => Quality::Normal,
+                        "jaxganhq" => Quality::HQ,
+                        _ => panic!("Unknown command!")
+                    };
+                    let prompt = command.data.options.get(0)
+                        .expect("Extracting parameter")
+                        .resolved.as_ref()
+                        .expect("Expected parameter string");
+                    if let ApplicationCommandInteractionDataOptionValue::String(prompt) = prompt {
+                        match self.generate(quality, prompt.clone(), ctx.clone(), command.clone(), user).await {
+                            Err(why) => why.to_string(),
+                            Ok(qlen) => format!("Generating. You are #{} in the queue.", qlen),
+                        }
+                    } else {
+                        "Unknown error extracting prompt.".to_string()
+                    }
+                } else {
+                    "For private usage, please visit https://pharmapsychotic.com/tools.html and use a Colab notebook.".to_string()
                 }
-            });
-
-            if let Err(why) = response {
-                println!("Cannot respond to command: {}", why);
+            };
+            let result = command.create_interaction_response(http, |response| {
+                response
+                    .kind(InteractionResponseType::ChannelMessageWithSource)
+                    .interaction_response_data(|m| m.content(response_text))
+            }).await;
+            if let Err(why) = result {
+                println!("Error in interaction_create: {}", why);
             }
-            
-            // let content = match command.data.name.as_str() {
-            //     "jaxgan" => {
-            //         let options = command.data.options.get(0).expect("Expected prompt").resolved.as_ref().expect("Expected user object");
-            //         if let ApplicationCommandInteractionDataOptionValue::String(prompt) = options {
-            //             command.create_interaction_response(&ctx.http, |response| {
-            //                 response
-            //                     .kind(InteractionResponseType::ChannelMessageWithSource)
-            //                     .interaction_response_data(|message| message;)
-            //             });
-            //             spawn(async move {
-            //             });
-            //             format!("Generating {}", prompt)
-            //         } else {
-            //             "Need a prompt!".into()
-            //         }
-            //     },
-            //     _ => "not implemented :(".to_string(),
-            // };
-
-            // if let Err(why) = command
-            //     .create_interaction_response(&ctx.http, |response| {
-            //         response
-            //             .kind(InteractionResponseType::ChannelMessageWithSource)
-            //             .interaction_response_data(|message| message.content(content))
-            //     })
-            //     .await
-            // {
-            //     println!("Cannot respond to slash command: {}", why);
-            // }
         }
     }
 
@@ -132,7 +143,7 @@ async fn main() -> Result<()> {
 
     // Build our client.
     let mut client = Client::builder(token)
-        .event_handler(Handler)
+        .event_handler(Handler { generator: Generator::new() })
         .application_id(application_id)
         .await
         .context("Error creating client")?;
