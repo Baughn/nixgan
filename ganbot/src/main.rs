@@ -1,5 +1,6 @@
 use anyhow::{Result, bail, Context as _};
 use generator::{Generator, Quality};
+
 use std::env;
 use serenity::{
     async_trait,
@@ -29,20 +30,30 @@ impl Handler {
 
         spawn(async move {
             let http = &ctx.http;
-            let response = result.1.await;
+            let generator_response = result.1.await;
             // Some time later...
-            match response {
+            match generator_response {
                 Err(why) => println!("Unknown generation error: {}", why),
                 Ok(generated_picture) => {
-                    let description = format!("{} – earlier steps: {}", user, generated_picture.steps_url);
+                    let description = prompt;
+                    let text = if let Some(msg) = generated_picture.message {
+                        format!("{} — Something went wrong: {}", user, msg)
+                    } else if let Some(psteps) = generated_picture.steps_url {
+                        format!("{} – earlier steps: {}", user, psteps)
+                    } else {
+                        format!("{} — but the earlier steps are mysteriously missing.", user)
+                    };
                     let result = command.create_followup_message(http, |response| {
                         response
-                            .content(user)
-                            .create_embed(|embed|
-                                embed
-                                    .description(description)
-                                    .image(generated_picture.final_url)
-                            )
+                            .content(text)
+                            .create_embed(|embed| {
+                                let embed = embed.description(description);
+                                if let Some(image) = generated_picture.final_url {
+                                    embed.image(image)
+                                } else {
+                                    embed
+                                }
+                            })
                     }).await;
                     if let Err(why) = result {
                         println!("Unknown error sending response: {}", why);

@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use tokio::{sync::{mpsc, oneshot}, spawn};
+use tokio::{sync::{mpsc, oneshot}, spawn, process::Command};
 use url::Url;
 
 const BASE_URL: &str = "https://brage.info/GAN/";
@@ -8,8 +8,9 @@ const BUFSIZ: usize = 8;
 
 #[derive(Debug)]
 pub struct GenResponse {
-    pub final_url: Url,
-    pub steps_url: Url,
+    pub message: Option<String>,
+    pub final_url: Option<Url>,
+    pub steps_url: Option<Url>,
 }
 
 struct GenRequest {
@@ -37,26 +38,70 @@ impl Generator {
     }
 
     fn generator(mut rx: mpsc::Receiver<GenRequest>) {
-        let base_url = Url::parse(BASE_URL).unwrap();
-
         spawn(async move {
             loop {
                 let request = rx.recv().await.expect("Generator should never close!");
-                println!("Generating {:?} in {:?} quality", request.prompt, request.quality);
-                
-                let result = "moo".to_string();
-                let final_url = base_url.join(&result).expect("Should be valid URL!");
-                let steps_url = base_url.join(&result).expect("Mooo!");
-                let response = GenResponse{final_url, steps_url};
-
-                request.respond.send(response).expect("Receiver should nexver hang up");
+                let response = Generator::generate(&request).await;
+                request.respond.send(
+                    match response {
+                        Ok(r) => r,
+                        Err(why) => GenResponse { 
+                            message: Some(why.to_string()),
+                            final_url: None,
+                            steps_url: None,
+                        }
+                    }
+                ).expect("Discord channel should never close!");
             }
         });
+    }
+
+    async fn generate(request: &GenRequest) -> Result<GenResponse> {
+        println!("Generating {:?} in {:?} quality", request.prompt, request.quality);
+
+        let output = Command::new("nix")
+            .arg("develop")
+            .arg("-c")
+            .arg("python3")
+            .arg("jax-diffusion/run.py")
+            .arg(format!("{:?}", request.quality))
+            .arg(request.prompt.clone())
+            .output().await?;
+
+        let base_url = Url::parse(BASE_URL).unwrap();
+        let mut final_url = None;
+        let mut steps_url = None;
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            if let Some((_, dir)) = line.split_once("IMAGE: ") {
+                final_url = Some(base_url.join(dir)?);
+            }
+            if let Some((_, dir)) = line.split_once("STEPS_DIR: ") {
+                steps_url = Some(base_url.join(dir)?);
+            }
+        }
+
+        if final_url.is_none() {
+            // Something went wrong. Report back what.
+            Ok(GenResponse {
+                message: Some(String::from_utf8_lossy(&output.stderr).into()),
+                final_url,
+                steps_url,
+            })
+        } else {
+            Ok(GenResponse {
+                message: None,
+                final_url,
+                steps_url,
+            })
+        }
     }
 
     pub fn queue(&self, quality: Quality, prompt: String) -> Result<(usize, oneshot::Receiver<GenResponse>)> {
         let (tx, rx) = oneshot::channel();
         let request = GenRequest { prompt, quality, respond: tx };
+        if self.tx.is_closed() {
+            panic!("Generator should never close!");
+        }
         let qlen = BUFSIZ - self.tx.capacity();
         match self.tx.try_send(request) {
             Ok(()) => Ok((qlen + 1, rx)),
