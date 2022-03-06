@@ -19,7 +19,7 @@ struct GenRequest {
     respond: oneshot::Sender<GenResponse>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Quality {
     Normal, HQ
 }
@@ -109,6 +109,9 @@ impl Generator {
             panic!("Generator should never close!");
         }
         let qlen = BUFSIZ - self.tx.capacity();
+        if quality == Quality::HQ && qlen > BUFSIZ / 2 && qlen < BUFSIZ {
+            bail!("Too many prompts already queued, try normal quality.")
+        }
         match self.tx.try_send(request) {
             Ok(()) => Ok((qlen + 1, rx)),
             Err(_) => bail!("Too many prompts already queued, try again later."),
