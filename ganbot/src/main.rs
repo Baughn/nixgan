@@ -45,10 +45,10 @@ impl Handler {
                     } else {
                         format!("{} — but the earlier steps are mysteriously missing.", user)
                     };
-                    let result = command.create_followup_message(http, |response| {
+                    let result = command.channel_id.send_message(http, |response| {
                         response
                             .content(text)
-                            .create_embed(|embed| {
+                            .embed(|embed| {
                                 let embed = embed.description(description);
                                 if let Some(image) = generated_picture.final_url {
                                     embed.image(image)
