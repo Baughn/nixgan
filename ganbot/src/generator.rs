@@ -60,10 +60,14 @@ impl Generator {
         println!("Generating {:?} in {:?} quality", request.prompt, request.quality);
 
         let output = Command::new("nix")
+            .current_dir("jax-diffusion")
             .arg("develop")
             .arg("-c")
+            .arg("chrt")
+            .arg("-b")
+            .arg("0")
             .arg("python3")
-            .arg("jax-diffusion/run.py")
+            .arg("run.py")
             .arg(format!("{:?}", request.quality))
             .arg(request.prompt.clone())
             .output().await?;
@@ -82,8 +86,10 @@ impl Generator {
 
         if final_url.is_none() {
             // Something went wrong. Report back what.
+            let message = String::from_utf8_lossy(&output.stderr).into();
+            println!("{}", message);
             Ok(GenResponse {
-                message: Some(String::from_utf8_lossy(&output.stderr).into()),
+                message: Some(message),
                 final_url,
                 steps_url,
             })
