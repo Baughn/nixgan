@@ -1273,7 +1273,8 @@ saveVideo = False #@param {type:"boolean"}
 
 
 def sanitize(title):
-  return title[:200].replace('/', '_').replace('.', '_').replace(' ', '_')
+  return title[:200].replace('/', '_').replace('.', '_').replace(' ', '_').replace(
+          '?', '_')
 
 @torch.no_grad()
 def run():
