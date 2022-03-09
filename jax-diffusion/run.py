@@ -980,6 +980,7 @@ if totalWeight != 1.0:
 
 if not use_InfoLOOB_prompt:
     all_title = sys.argv[2]
+
 steps =  250 #@param {type:"raw"}
 n_batches = 1 #@param {type:"integer"}        
 batch_size =  1#@param {type:"integer"}
@@ -1274,7 +1275,7 @@ saveVideo = False #@param {type:"boolean"}
 
 def sanitize(title):
   return title[:200].replace('/', '_').replace('.', '_').replace(' ', '_').replace(
-          '?', '_')
+          '?', '_').replace('#', '_')
 
 @torch.no_grad()
 def run():
