@@ -25,5 +25,6 @@ in
 pkgs.mkShell {
   nativeBuildInputs = with pkgs; [
     (python3.withPackages pyPkgs)
+    cudatoolkit_11
   ];
 }
