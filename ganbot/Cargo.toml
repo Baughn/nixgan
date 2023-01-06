@@ -15,5 +15,5 @@ features = ["client", "gateway", "rustls_backend", "model", "unstable_discord_ap
 default-features = false
 
 [dependencies.tokio]
-version = "1.17.0"
+version = "1.18.4"
 features = ["full"]
